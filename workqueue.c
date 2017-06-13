@@ -27,8 +27,16 @@ struct simple_workqueue {
 
 #define WQ_REQ_STOP                 (0x8000)
 #define WQ_REQ_SCHEDULE             (0x0001)
+#define WQ_REQ_CANCEL               (0x0002)
 
 #define WQ_STAT_LAUNCHED            (0x0001)
+
+static void print_time(void)
+{
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    printf("%u.%u\n", now.tv_sec, now.tv_usec);
+}
 
 static void *simple_worker_thread(void *param)
 {
@@ -43,11 +51,11 @@ static void *simple_worker_thread(void *param)
     pthread_mutex_lock(&wq->mutex);
     do {
         if (wq->dwork) {
-            printf("dwork = %p\n", wq->dwork);
+            printf("***** dwork = %p\n", wq->dwork);
             ret = pthread_cond_timedwait(&wq->cond, &wq->mutex, &wq->dwork->wait_ts);
         }
         else {
-            printf("dwork = %p\n", wq->dwork);
+            printf("----- dwork = %p\n", wq->dwork);
             ret = pthread_cond_wait(&wq->cond, &wq->mutex);
         }
 
@@ -67,10 +75,17 @@ static void *simple_worker_thread(void *param)
                 break;
         }
 
-        if (wq->request & WQ_REQ_STOP) {
-            wq->dwork = NULL;
-            break;
+        if (wq->request & WQ_REQ_SCHEDULE) {
+            printf("==== SCHEDULE ===\n");
+            print_time();
         }
+
+        if (wq->request & WQ_REQ_CANCEL) {
+            printf("==== CANCEL ===\n");
+            wq->dwork = NULL;
+        }
+
+        wq->request = 0;
 
     } while (!(wq->request & WQ_REQ_STOP));
     pthread_mutex_unlock(&wq->mutex);
@@ -122,11 +137,15 @@ void schedule_delayed_work(struct simple_workqueue *wq,
         struct simple_delayed_work *dwork, unsigned long udelay)
 {
     struct timeval now;
-    pthread_mutex_lock(&wq->mutex);
+
     gettimeofday(&now, NULL);
+    printf("==== scheudle ====\n");
+    print_time();
     dwork->wait_ts.tv_sec = now.tv_sec + USEC2SEC(udelay + now.tv_usec);
-    dwork->wait_ts.tv_nsec = USEC2NSEC(udelay - now.tv_usec);
+    dwork->wait_ts.tv_nsec = (udelay % 1000000) * 1000;
     dwork->queue = wq;
+
+    pthread_mutex_lock(&wq->mutex);
     wq->dwork = dwork;
     wq->request = WQ_REQ_SCHEDULE;
     pthread_cond_broadcast(&wq->cond);
@@ -136,10 +155,9 @@ void schedule_delayed_work(struct simple_workqueue *wq,
 void cancel_delayed_work(struct simple_delayed_work *dwork)
 {
     pthread_mutex_lock(&dwork->queue->mutex);
-    dwork->queue->dwork = NULL;
+    dwork->queue->request = WQ_REQ_CANCEL;
     pthread_cond_broadcast(&dwork->queue->cond);
     pthread_mutex_unlock(&dwork->queue->mutex);
-    dwork->queue = NULL;
 }
 
 /*****************************************************************************/
@@ -147,6 +165,7 @@ void cancel_delayed_work(struct simple_delayed_work *dwork)
 static void test_callback(void *param)
 {
     printf("==== callback with param %p ====\n", param);
+    print_time();
 }
 
 int main(int argc, char **argv)
@@ -158,7 +177,17 @@ int main(int argc, char **argv)
     dwork.param = (void *)NULL;
 
     wq = create_simple_workqueue();
-    schedule_delayed_work(wq, &dwork, 3000000);
+    schedule_delayed_work(wq, &dwork, 1000000);
+    sleep(2);
+
+    schedule_delayed_work(wq, &dwork, 2000000);
+    sleep(1);
+    cancel_delayed_work(&dwork);
+
+    schedule_delayed_work(wq, &dwork, 1000000);
+    sleep(2);
+    cancel_delayed_work(&dwork);
+
     for ( ; ; )
         sleep (10);
 
