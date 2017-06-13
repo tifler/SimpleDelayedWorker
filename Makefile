@@ -2,7 +2,7 @@ CC		:= gcc
 CFLAGS	:= -Wall -g
 LFLAGS	:= -lpthread
 
-OBJS	+= workqueue.o
+OBJS	+= XWorkQueue.o main.o
 TARGET	:= wq
 
 .PHONY: clean
