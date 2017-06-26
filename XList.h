@@ -5,7 +5,9 @@ struct XList {
     struct XList *prev, *next;
 };
 
+#ifndef offsetof
 #define offsetof(st, m) __builtin_offsetof(st, m)
+#endif  /*offsetof*/
 
 #define XListEntry(ptr, type, member)   ({  \
         const typeof(((type *)0)->member) *__mptr = (ptr); \

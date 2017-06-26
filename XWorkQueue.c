@@ -1,6 +1,7 @@
 #define DEBUG
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
@@ -141,7 +142,8 @@ static void *penderThread(void *param)
         dwork = toDelayedWork(work);
         DBG("dwork = %p\n", dwork);
         if (dwork) {
-            ret = pthread_cond_timedwait(&pender->cond, &pender->mutex, &dwork->ts);
+            ret = pthread_cond_timedwait(
+                    &pender->cond, &pender->mutex, &dwork->ts);
         }
         else {
             ret = pthread_cond_wait(&pender->cond, &pender->mutex);
@@ -234,6 +236,16 @@ static void __scheduleWork(struct XWorker *worker, struct XWork *work)
     pthread_mutex_unlock(&worker->mutex);
 }
 
+void initWork(struct XWork *work)
+{
+    memset(work, 0, sizeof(*work));
+}
+
+void initDelayedWork(struct XDelayedWork *dwork)
+{
+    memset(dwork, 0, sizeof(*dwork));
+}
+
 void scheduleWork(struct XWorkQueue *wq, struct XWork *work)
 {
     struct XWorker *worker = &wq->worker;
@@ -265,7 +277,8 @@ void cancelWork(struct XWork *work)
 {
     struct XWorker *worker = work->worker;
 
-    ASSERT(worker);
+    if (!worker)
+        return;
 
     pthread_mutex_lock(&worker->mutex);
     XListDel(&work->entry);

@@ -30,6 +30,8 @@ struct XDelayedWork {
 
 struct XWorkQueue *createXWorkQueue(void);
 void destroyXWorkQueue(struct XWorkQueue *wq);
+void initWork(struct XWork *work);
+void initDelayedWork(struct XDelayedWork *dwork);
 void scheduleWork(struct XWorkQueue *wq, struct XWork *work);
 void scheduleDelayedWork(struct XWorkQueue *wq,
         struct XDelayedWork *dwork, unsigned long udelay);
